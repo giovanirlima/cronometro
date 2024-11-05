@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cronometro-app
+  labels:
+    app: cronometro
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cronometro
+  template:
+    metadata:
+      labels:
+        app: cronometro
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80 
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+
+      - name: cronometro-container
+        image: giovanirlima/cronometro:latest
+        ports:
+        - containerPort: 3000 
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  default.conf: |
+    server {
+        listen 80;
+        location / {
+            proxy_pass http://localhost:3000; 
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cronometro-service
+spec:
+  selector:
+    app: cronometro
+  ports:
+    - protocol: TCP
+      port: 80 
+      targetPort: 80
+  type: LoadBalancer
